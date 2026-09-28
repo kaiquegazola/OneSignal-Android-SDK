@@ -95,7 +95,12 @@ internal class ConfigModelStoreListener(
                     params.disableGMSMissingPrompt?.let { config.disableGMSMissingPrompt = it }
                     params.unsubscribeWhenNotificationsDisabled?.let { config.unsubscribeWhenNotificationsDisabled = it }
                     params.locationShared?.let { config.locationShared = it }
-                    params.requiresUserPrivacyConsent?.let { config.consentRequired = it }
+                    // Fork: never downgrade a consent requirement already in place. The host requires
+                    // (and withdraws) consent to silence a running SDK when it closes the auto-init
+                    // gate; the backend's "not required" must not lift that.
+                    params.requiresUserPrivacyConsent?.let {
+                        config.consentRequired = it || _configModelStore.model.consentRequired == true
+                    }
                     params.opRepoExecutionInterval?.let { config.opRepoExecutionInterval = it }
                     params.influenceParams.notificationLimit?.let { config.influenceParams.notificationLimit = it }
                     params.influenceParams.indirectNotificationAttributionWindow?.let { config.influenceParams.indirectNotificationAttributionWindow = it }

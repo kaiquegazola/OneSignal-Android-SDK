@@ -28,9 +28,11 @@ class ConfigModelStoreListenerTests : FunSpec({
     suspend fun runFetchWith(
         store: ConfigModelStore,
         remoteLoggingParams: RemoteLoggingParamsObject,
+        requiresUserPrivacyConsent: Boolean? = null,
     ) {
         val params = mockk<ParamsObject>(relaxed = true)
         every { params.remoteLoggingParams } returns remoteLoggingParams
+        every { params.requiresUserPrivacyConsent } returns requiresUserPrivacyConsent
 
         val paramsBackend = mockk<IParamsBackendService>()
         coEvery { paramsBackend.fetchParams(any(), any()) } returns params
@@ -136,5 +138,36 @@ class ConfigModelStoreListenerTests : FunSpec({
 
         store.model.sdkRemoteFeatureFlags shouldBe listOf("sdk_background_threading")
         store.model.sdkRemoteFeatureFlagMetadata shouldBe """{"sdk_background_threading":{"x":1}}"""
+    }
+
+    test("fork: a fetch saying consent is not required does not lift a local requirement") {
+        val store = ConfigModelStore(MockPreferencesService())
+        store.model.appId = "test-app-id"
+        store.model.consentRequired = true
+        store.model.consentGiven = false
+
+        runFetchWith(store, RemoteLoggingParamsObject(logLevel = null), requiresUserPrivacyConsent = false)
+
+        store.model.consentRequired shouldBe true
+        store.model.consentGiven shouldBe false
+    }
+
+    test("fork: a fetch can still require consent") {
+        val store = ConfigModelStore(MockPreferencesService())
+        store.model.appId = "test-app-id"
+
+        runFetchWith(store, RemoteLoggingParamsObject(logLevel = null), requiresUserPrivacyConsent = true)
+
+        store.model.consentRequired shouldBe true
+    }
+
+    test("fork: without a local requirement the backend value applies") {
+        val store = ConfigModelStore(MockPreferencesService())
+        store.model.appId = "test-app-id"
+        store.model.consentRequired = false
+
+        runFetchWith(store, RemoteLoggingParamsObject(logLevel = null), requiresUserPrivacyConsent = false)
+
+        store.model.consentRequired shouldBe false
     }
 })
