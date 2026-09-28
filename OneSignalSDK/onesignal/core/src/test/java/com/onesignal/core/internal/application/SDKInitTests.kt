@@ -5,6 +5,7 @@ import android.content.ContextWrapper
 import android.content.SharedPreferences
 import androidx.test.core.app.ApplicationProvider.getApplicationContext
 import br.com.colman.kotest.android.extensions.robolectric.RobolectricTest
+import com.onesignal.OneSignal
 import com.onesignal.common.AndroidUtils
 import com.onesignal.common.threading.OneSignalDispatchers
 import com.onesignal.core.internal.preferences.PreferenceOneSignalKeys.PREFS_LEGACY_APP_ID
@@ -17,8 +18,10 @@ import io.kotest.matchers.maps.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
@@ -587,6 +590,44 @@ class SDKInitTests : FunSpec({
 
             results.toList() shouldBe listOf(false, false, false)
         }
+    }
+
+    test("setAutoInitAllowed(false) right after initWithContext(appId) is not overwritten by the init dispatch") {
+        // The init body is dispatched to IO; with the pool saturated it can only run after the
+        // host's setAutoInitAllowed(false). The explicit-init gate write must not land after it.
+        val context = getApplicationContext<Context>()
+        val prefs = context.getSharedPreferences("OneSignal", Context.MODE_PRIVATE)
+        val os = OneSignalImp()
+
+        withSaturatedOneSignalIo {
+            os.initWithContext(context, "appId")
+            OneSignal.setAutoInitAllowed(context, false)
+        }
+        waitForInitialization(os)
+
+        prefs.getBoolean("onesignal_auto_init_allowed", true) shouldBe false
+    }
+
+    test("auto init gate writes are committed synchronously") {
+        val context = getApplicationContext<Context>()
+        val editor = mockk<SharedPreferences.Editor>(relaxed = true)
+        every { editor.putBoolean(any(), any()) } returns editor
+        every { editor.commit() } returns true
+        val prefs = mockk<SharedPreferences>()
+        every { prefs.edit() } returns editor
+        val ctx =
+            object : ContextWrapper(context) {
+                override fun getSharedPreferences(
+                    name: String?,
+                    mode: Int,
+                ): SharedPreferences = prefs
+            }
+
+        OneSignal.setAutoInitAllowed(ctx, false)
+
+        verify { editor.putBoolean("onesignal_auto_init_allowed", false) }
+        verify { editor.commit() }
+        verify(exactly = 0) { editor.apply() }
     }
 
     test("login should throw exception when initWithContext is never called") {

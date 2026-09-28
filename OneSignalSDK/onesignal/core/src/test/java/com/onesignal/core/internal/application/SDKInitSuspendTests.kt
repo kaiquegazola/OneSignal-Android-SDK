@@ -6,6 +6,7 @@ import br.com.colman.kotest.android.extensions.robolectric.RobolectricTest
 import com.onesignal.OneSignal
 import com.onesignal.debug.LogLevel
 import com.onesignal.debug.internal.logging.Logging
+import com.onesignal.internal.AutoInitGate
 import com.onesignal.internal.OneSignalImp
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -175,7 +176,7 @@ class SDKInitSuspendTests : FunSpec({
             OneSignalImp().initWithContextSuspend(context, "testAppId") shouldBe true
 
             // Then - the gate is persisted and a later self-init from the cached appId works
-            prefs.getBoolean("onesignal_auto_init_allowed", false) shouldBe true
+            AutoInitGate.isAllowed(context) shouldBe true
             val selfInit = OneSignalImp()
             selfInit.initWithContextSuspend(context, null) shouldBe true
             selfInit.isInitialized shouldBe true

@@ -340,6 +340,10 @@ internal class OneSignalImp : IOneSignal,
     ): Boolean {
         Logging.log(LogLevel.DEBUG, "Calling deprecated initWithContext(context: $context, appId: $appId)")
 
+        // Explicit init by the host app allows later self-init from the cached appId. Queued in
+        // call order (without blocking on disk) so a later setAutoInitAllowed(false) always wins.
+        AutoInitGate.setAllowedAsync(context, true)
+
         // Warm OneSignalDispatchers on a dedicated daemon thread so the first production caller
         // of suspendifyOnIO / launchOnSerialIO doesn't pay the ThreadPoolExecutor + dispatcher +
         // scope construction cost on the main thread (observed as 5-20s main-thread blocks at the
@@ -380,8 +384,6 @@ internal class OneSignalImp : IOneSignal,
         // Dispatch init asynchronously so this method never blocks the caller. Callers that
         // need to wait (accessors, login, logout) will block via suspendCompletion.
         suspendifyOnIO {
-            // Explicit init by the host app allows later self-init from the cached appId.
-            AutoInitGate.setAllowed(context, true)
             internalInit(context, appId)
         }
         return true
@@ -747,6 +749,11 @@ internal class OneSignalImp : IOneSignal,
     ): Boolean {
         Logging.log(LogLevel.DEBUG, "initWithContext(context: $context, appId: $appId)")
 
+        // Explicit init allows later self-init; queued before any dispatch, in call order.
+        if (appId != null) {
+            AutoInitGate.setAllowedAsync(context, true)
+        }
+
         // Same warm-up as the synchronous variant. Reaching this entry point on the main thread
         // (e.g. SyncJobService.onStartJob -> suspendifyOnIO -> initWithContext(context)) pays the
         // cold-init cost on the dispatcher used to enter [withContext] below, so warm
@@ -794,11 +801,7 @@ internal class OneSignalImp : IOneSignal,
                 return@withContext initState == InitState.SUCCESS
             }
 
-            if (appId != null) {
-                AutoInitGate.setAllowed(context, true)
-            }
-            val result = internalInit(context, appId)
-            result
+            internalInit(context, appId)
         }
     }
 

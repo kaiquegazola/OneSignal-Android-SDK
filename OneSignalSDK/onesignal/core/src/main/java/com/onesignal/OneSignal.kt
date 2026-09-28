@@ -141,6 +141,8 @@ object OneSignal {
      * [initWithContext] call (FCM/boot/upgrade receivers, notification activities, background
      * jobs and workers). Persisted; defaults to NOT allowed. An explicit [initWithContext] with an
      * appId always works and sets this to `true`. Safe to call before [initWithContext].
+     * The value is committed to disk before this returns (a small synchronous write), after any
+     * earlier [initWithContext] call's own write, so the last call wins.
      *
      * @param context The Android context used to persist the setting.
      * @param allowed Whether self-init from the cached appId is allowed.
