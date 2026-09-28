@@ -3,6 +3,7 @@ package com.onesignal.core.internal.application
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider.getApplicationContext
 import br.com.colman.kotest.android.extensions.robolectric.RobolectricTest
+import com.onesignal.OneSignal
 import com.onesignal.debug.LogLevel
 import com.onesignal.debug.internal.logging.Logging
 import com.onesignal.internal.OneSignalImp
@@ -84,6 +85,8 @@ class SDKInitSuspendTests : FunSpec({
             Thread.sleep(50)
         }
 
+        verifyPrefs.edit().putBoolean("onesignal_auto_init_allowed", true).commit()
+
         // Create a completely fresh OneSignalImp instance for this test
         val os = OneSignalImp()
 
@@ -121,6 +124,75 @@ class SDKInitSuspendTests : FunSpec({
             result1 shouldBe true
             result2 shouldBe true
             result3 shouldBe true
+            os.isInitialized shouldBe true
+        }
+    }
+
+    // ===== AUTO INIT GATE TESTS =====
+
+    test("initWithContextSuspend with null appId is skipped when auto init was never allowed") {
+        // Given - an appId cached by a previous run, but the gate never set
+        val context = getApplicationContext<Context>()
+        val prefs = context.getSharedPreferences("OneSignal", Context.MODE_PRIVATE)
+        prefs.edit().clear().putString("GT_APP_ID", "cachedAppId").commit()
+        val os = OneSignalImp()
+
+        runBlocking {
+            // When
+            val result = os.initWithContextSuspend(context, null)
+
+            // Then - no init, and the SDK can still be initialized explicitly afterwards
+            result shouldBe false
+            os.isInitialized shouldBe false
+            prefs.contains("onesignal_auto_init_allowed") shouldBe false
+            shouldThrow<IllegalStateException> { os.user }
+        }
+    }
+
+    test("initWithContextSuspend with null appId is skipped when auto init is disallowed") {
+        // Given
+        val context = getApplicationContext<Context>()
+        val prefs = context.getSharedPreferences("OneSignal", Context.MODE_PRIVATE)
+        prefs.edit().clear().putString("GT_APP_ID", "cachedAppId").commit()
+        OneSignal.setAutoInitAllowed(context, false)
+        val os = OneSignalImp()
+
+        runBlocking {
+            // When / Then
+            os.initWithContextSuspend(context, null) shouldBe false
+            os.isInitialized shouldBe false
+        }
+    }
+
+    test("explicit init allows auto init and self-init then succeeds") {
+        // Given
+        val context = getApplicationContext<Context>()
+        val prefs = context.getSharedPreferences("OneSignal", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+
+        runBlocking {
+            // When - the host app initializes explicitly
+            OneSignalImp().initWithContextSuspend(context, "testAppId") shouldBe true
+
+            // Then - the gate is persisted and a later self-init from the cached appId works
+            prefs.getBoolean("onesignal_auto_init_allowed", false) shouldBe true
+            val selfInit = OneSignalImp()
+            selfInit.initWithContextSuspend(context, null) shouldBe true
+            selfInit.isInitialized shouldBe true
+        }
+    }
+
+    test("self-init while an explicit init already succeeded ignores the gate") {
+        // Given
+        val context = getApplicationContext<Context>()
+        val os = OneSignalImp()
+
+        runBlocking {
+            os.initWithContextSuspend(context, "testAppId") shouldBe true
+            OneSignal.setAutoInitAllowed(context, false)
+
+            // When / Then - same process, behaviour unchanged
+            os.initWithContextSuspend(context, null) shouldBe true
             os.isInitialized shouldBe true
         }
     }

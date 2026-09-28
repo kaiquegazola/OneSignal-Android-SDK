@@ -4,6 +4,7 @@ import android.content.Context
 import com.onesignal.common.services.IServiceProvider
 import com.onesignal.debug.IDebugManager
 import com.onesignal.inAppMessages.IInAppMessagesManager
+import com.onesignal.internal.AutoInitGate
 import com.onesignal.internal.OneSignalImp
 import com.onesignal.location.ILocationManager
 import com.onesignal.notifications.INotificationsManager
@@ -133,6 +134,23 @@ object OneSignal {
         appId: String,
     ) {
         oneSignal.initWithContext(context, appId)
+    }
+
+    /**
+     * Allow or block the SDK from initializing itself from the appId cached by a previous
+     * [initWithContext] call (FCM/boot/upgrade receivers, notification activities, background
+     * jobs and workers). Persisted; defaults to NOT allowed. An explicit [initWithContext] with an
+     * appId always works and sets this to `true`. Safe to call before [initWithContext].
+     *
+     * @param context The Android context used to persist the setting.
+     * @param allowed Whether self-init from the cached appId is allowed.
+     */
+    @JvmStatic
+    fun setAutoInitAllowed(
+        context: Context,
+        allowed: Boolean,
+    ) {
+        AutoInitGate.setAllowed(context, allowed)
     }
 
     /**

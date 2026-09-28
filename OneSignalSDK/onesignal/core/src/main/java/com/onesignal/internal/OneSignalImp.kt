@@ -380,6 +380,8 @@ internal class OneSignalImp : IOneSignal,
         // Dispatch init asynchronously so this method never blocks the caller. Callers that
         // need to wait (accessors, login, logout) will block via suspendCompletion.
         suspendifyOnIO {
+            // Explicit init by the host app allows later self-init from the cached appId.
+            AutoInitGate.setAllowed(context, true)
             internalInit(context, appId)
         }
         return true
@@ -753,6 +755,9 @@ internal class OneSignalImp : IOneSignal,
 
         // Use IO dispatcher for initialization to prevent ANRs and optimize for I/O operations
         return withContext(ioDispatcher) {
+            // appId == null is a self-init from the cached appId (receivers, jobs, workers,
+            // activities). It only runs when the host app allowed it; an explicit appId allows it.
+            val autoInitAllowed = appId != null || AutoInitGate.isAllowed(context)
             val shouldRunInit: Boolean
             // Local-capture under the lock so that even if a concurrent retry-after-FAILED
             // resets `suspendCompletion`, we await on the same generation we observed.
@@ -761,6 +766,9 @@ internal class OneSignalImp : IOneSignal,
                 if (initState.isSDKAccessible()) {
                     shouldRunInit = false
                     completionToAwait = suspendCompletion
+                } else if (!autoInitAllowed) {
+                    Logging.log(LogLevel.DEBUG, "initWithContext: auto init not allowed, skipping self-init")
+                    return@withContext false
                 } else {
                     shouldRunInit = true
                     completionToAwait = null
@@ -786,6 +794,9 @@ internal class OneSignalImp : IOneSignal,
                 return@withContext initState == InitState.SUCCESS
             }
 
+            if (appId != null) {
+                AutoInitGate.setAllowed(context, true)
+            }
             val result = internalInit(context, appId)
             result
         }

@@ -105,6 +105,9 @@ class SDKInitTests : FunSpec({
         // Given
         val context = getApplicationContext<Context>()
         val os = OneSignalImp()
+        context.getSharedPreferences("OneSignal", Context.MODE_PRIVATE).edit()
+            .putBoolean("onesignal_auto_init_allowed", true)
+            .commit()
 
         // When
         os.initWithContext(context)
@@ -201,6 +204,7 @@ class SDKInitTests : FunSpec({
         // This simulates the case where a previous test has set an appId that can be resolved
         prefs.edit()
             .putString(PREFS_LEGACY_APP_ID, "testAppId") // Set legacy appId
+            .putBoolean("onesignal_auto_init_allowed", true)
             .commit()
 
         // When - no appId passed; resolved from the legacy SharedPreferences value.
