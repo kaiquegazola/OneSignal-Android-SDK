@@ -4,12 +4,14 @@ gradle.rootProject {
     allprojects {
         // Fork: PUBLISH_GROUP / PUBLISH_VERSION override the Maven coordinates (set by jitpack.yml).
         // The SDK version reported to the backend stays SDK_VERSION (see core/build.gradle).
-        group = gradle.rootProject.findProperty("PUBLISH_GROUP") ?: 'com.onesignal'
+        // :kmp is unchanged from upstream, so it keeps com.onesignal:kmp:SDK_VERSION (Maven Central).
+        def forkCoordinates = project.path != ':OneSignal:kmp'
+        group = (forkCoordinates ? gradle.rootProject.findProperty("PUBLISH_GROUP") : null) ?: 'com.onesignal'
         if (!gradle.rootProject.hasProperty("SDK_VERSION") ||
                 gradle.rootProject.getProperty("SDK_VERSION").toString().trim().isEmpty()) {
             throw new RuntimeException("SDK_VERSION is not defined. Please pass -PSDK_VERSION=X.Y.Z to the build or update gradle.properties.")
         }
-        version = gradle.rootProject.findProperty("PUBLISH_VERSION") ?: gradle.rootProject.getProperty("SDK_VERSION")
+        version = (forkCoordinates ? gradle.rootProject.findProperty("PUBLISH_VERSION") : null) ?: gradle.rootProject.getProperty("SDK_VERSION")
         configurations.all {
             resolutionStrategy.dependencySubstitution {
                 substitute(module('com.onesignal:OneSignal')).using(project(':OneSignal'))
