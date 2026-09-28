@@ -1,0 +1,8 @@
+# JitPack build for the kaiquegazola fork (no auto-init).
+# Gradle root is OneSignalSDK/. Artifacts: com.github.kaiquegazola.OneSignal-Android-SDK:<module>:<tag>
+jdk:
+  - openjdk17
+before_install:
+  - git submodule update --init --recursive
+install:
+  - cd OneSignalSDK && ./gradlew --no-daemon --no-configuration-cache -PPUBLISH_GROUP=com.github.kaiquegazola.OneSignal-Android-SDK -PPUBLISH_VERSION=$VERSION -PALLOW_UNTAGGED_LOGGER_KMP=true :OneSignal:kmp:publishToMavenLocal :OneSignal:core:publishToMavenLocal :OneSignal:notifications:publishToMavenLocal :OneSignal:in-app-messages:publishToMavenLocal :OneSignal:location:publishToMavenLocal :OneSignal:publishToMavenLocal
